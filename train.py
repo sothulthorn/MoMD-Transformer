@@ -17,6 +17,7 @@ import csv
 import os
 import time
 import numpy as np
+import math
 import torch
 import torch.nn as nn
 
@@ -34,7 +35,8 @@ from utils import (
 )
 
 
-def train_one_epoch(model, train_loader, optimizer, device, mask_ratio, lambda_gkt, lambda_msm):
+def train_one_epoch(model, train_loader, optimizer, device, mask_ratio, lambda_gkt, lambda_msm,
+                    scheduler=None, max_grad_norm=0.0):
     model.train()
     total_loss = 0.0
     total_ld = 0.0
@@ -80,7 +82,11 @@ def train_one_epoch(model, train_loader, optimizer, device, mask_ratio, lambda_g
 
         optimizer.zero_grad()
         loss_all.backward()
+        if max_grad_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
 
         # Track metrics (using multi-modal predictions)
         total_loss += loss_all.item() * labels.size(0)
@@ -142,6 +148,19 @@ def run_experiment(args, seed, run_dir, label_names):
         model.parameters(), lr=args.lr, weight_decay=config.WEIGHT_DECAY,
     )
 
+    # --- LR Schedule: linear warmup + cosine decay (per step) ---
+    steps_per_epoch = len(train_loader)
+    total_steps = args.epochs * steps_per_epoch
+    warmup_steps = config.WARMUP_EPOCHS * steps_per_epoch
+
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return current_step / max(1, warmup_steps)
+        progress = (current_step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
     # --- Training ---
     best_val_acc = 0.0
     best_model_state = None
@@ -155,6 +174,8 @@ def run_experiment(args, seed, run_dir, label_names):
             mask_ratio=config.MASK_RATIO,
             lambda_gkt=config.LAMBDA_GKT,
             lambda_msm=config.LAMBDA_MSM,
+            scheduler=scheduler,
+            max_grad_norm=config.MAX_GRAD_NORM,
         )
 
         # Per-modality validation
@@ -178,6 +199,7 @@ def run_experiment(args, seed, run_dir, label_names):
 
         epoch_pbar.set_postfix(
             loss=f"{train_metrics['loss']:.4f}",
+            lr=f"{optimizer.param_groups[0]['lr']:.2e}",
             cur=f"{val_acc_cur:.1f}%",
             vib=f"{val_acc_vib:.1f}%",
             both=f"{val_acc_both:.1f}%",

@@ -1,6 +1,6 @@
 # MoMD Transformer
 
-A PyTorch reimplementation of the **MoMD Transformer** (Mixture-of-Modality-Diagnosis Transformer) for adaptive multi-modal fault diagnosis via knowledge transfer with vibration-current signals.
+Unofficial PyTorch reimplementation of the **MoMD Transformer** (Mixture-of-Modality-Diagnosis Transformer) for adaptive multi-modal fault diagnosis via knowledge transfer with vibration-current signals.
 
 > **Reference:** "MoMD Transformer: adaptive multi-modal fault diagnosis via knowledge transfer with vibration-current signals" (Information Fusion, 2026)
 >

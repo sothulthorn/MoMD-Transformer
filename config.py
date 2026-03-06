@@ -11,7 +11,7 @@ Based on: "MoMD Transformer: adaptive multi-modal fault diagnosis via knowledge
 SIGNAL_LENGTH = 2048
 SEGMENT_LENGTH = 64
 EMBED_DIM = 128
-MLP_DIM = 512
+MLP_DIM = 419 # 512
 NUM_HEADS = 8
 BLOCK_DEPTH = 3
 DROPOUT = 0.2
@@ -23,7 +23,7 @@ OPTIMIZER = "Adam"
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-4
 BATCH_SIZE = 64
-NUM_EPOCHS = 200
+NUM_EPOCHS = 100
 NUM_WORKERS = 4
 NUM_REPEATS = 10
 SEED = 42
@@ -31,6 +31,10 @@ SEED = 42
 # Loss weights (Eq. 21: L_all = L_D + lambda1 * L_gkt + lambda2 * L_msm)
 LAMBDA_GKT = 1.0
 LAMBDA_MSM = 1.0
+
+# Learning rate schedule
+WARMUP_EPOCHS = 10
+MAX_GRAD_NORM = 1.0
 
 # Masked Signal Modeling
 MASK_RATIO = 0.15

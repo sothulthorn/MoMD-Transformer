@@ -121,7 +121,7 @@ def extract_pu_signals(filepath):
     return channel_dict["vibration_1"], channel_dict["phase_current_1"]
 
 
-def preprocess_pu(raw_dir, output_dir, signal_length=2048, norm="global"):
+def preprocess_pu(raw_dir, output_dir, signal_length=2048):
     """
     Preprocess PU bearing dataset.
 
@@ -187,7 +187,7 @@ def preprocess_pu(raw_dir, output_dir, signal_length=2048, norm="global"):
 
         print(f"    -> {num_windows} samples extracted")
 
-    _save_dataset(all_vib, all_cur, all_labels, output_dir, "PU", norm=norm)
+    _save_dataset(all_vib, all_cur, all_labels, output_dir, "PU")
 
 
 # ==============================================================================
@@ -225,8 +225,6 @@ PMSM_STATOR_FILES = {
         ],
     },
 }
-PMSM_VIB_RATE = 25600   # 25.6 kHz vibration sampling rate
-PMSM_CUR_RATE = 100000  # 100 kHz current sampling rate
 
 
 def inspect_pmsm_tdms(filepath):
@@ -280,7 +278,7 @@ def resample_signal(signal, orig_rate, target_rate):
     return resample(signal, target_len)
 
 
-def preprocess_pmsm(raw_dir, output_dir, signal_length=2048, norm="global"):
+def preprocess_pmsm(raw_dir, output_dir, signal_length=2048):
     """
     Preprocess PMSM stator fault dataset.
 
@@ -293,8 +291,8 @@ def preprocess_pmsm(raw_dir, output_dir, signal_length=2048, norm="global"):
         ...
 
     Vibration: 25.6 kHz, Current: 100 kHz.
-    Current is downsampled to 25.6 kHz to produce time-aligned pairs.
-    Both are segmented into windows of `signal_length`.
+    Each modality is segmented at its native sampling rate into windows
+    of `signal_length`, then paired by index.
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -326,14 +324,6 @@ def preprocess_pmsm(raw_dir, output_dir, signal_length=2048, norm="global"):
             print(f"    Loading {cur_fname}...")
             cur_signal = extract_pmsm_current(cur_path)
 
-            # Downsample current from 100 kHz to 25.6 kHz (match vibration)
-            print(f"    Resampling current: {len(cur_signal)} samples "
-                  f"({PMSM_CUR_RATE} Hz) -> ", end="")
-            cur_signal = resample_signal(
-                cur_signal, PMSM_CUR_RATE, PMSM_VIB_RATE
-            )
-            print(f"{len(cur_signal)} samples ({PMSM_VIB_RATE} Hz)")
-
             class_vib.append(vib_signal)
             class_cur.append(cur_signal)
 
@@ -344,10 +334,13 @@ def preprocess_pmsm(raw_dir, output_dir, signal_length=2048, norm="global"):
         vib_concat = np.concatenate(class_vib)
         cur_concat = np.concatenate(class_cur)
 
-        # Segment into windows
-        usable_len = min(len(vib_concat), len(cur_concat))
-        num_windows = usable_len // signal_length
-        num_windows = min(num_windows, max_samples)
+        # Segment each modality independently at native rate, pair by index
+        num_vib_windows = len(vib_concat) // signal_length
+        num_cur_windows = len(cur_concat) // signal_length
+        num_windows = min(num_vib_windows, num_cur_windows, max_samples)
+
+        print(f"    Available windows: vib={num_vib_windows}, "
+              f"cur={num_cur_windows}, using={num_windows}")
 
         for i in range(num_windows):
             start = i * signal_length
@@ -357,16 +350,15 @@ def preprocess_pmsm(raw_dir, output_dir, signal_length=2048, norm="global"):
 
         print(f"    -> {num_windows} samples extracted")
 
-    _save_dataset(all_vib, all_cur, all_labels, output_dir, "PMSM", norm=norm)
+    _save_dataset(all_vib, all_cur, all_labels, output_dir, "PMSM")
 
 
 # ==============================================================================
 # Common utilities
 # ==============================================================================
 
-def _save_dataset(all_vib, all_cur, all_labels, output_dir, dataset_name,
-                   norm="global"):
-    """Normalize, save arrays, and print summary."""
+def _save_dataset(all_vib, all_cur, all_labels, output_dir, dataset_name):
+    """Z-score normalize, save arrays, and print summary."""
     if not all_labels:
         print(f"\n[ERROR] No data extracted for {dataset_name}. "
               "Check your raw_dir path and file structure.")
@@ -376,14 +368,9 @@ def _save_dataset(all_vib, all_cur, all_labels, output_dir, dataset_name,
     all_cur = np.array(all_cur, dtype=np.float32)
     all_labels = np.array(all_labels, dtype=np.int64)
 
-    if norm == "global":
-        # Z-score normalization per modality
-        all_vib = (all_vib - all_vib.mean()) / (all_vib.std() + 1e-8)
-        all_cur = (all_cur - all_cur.mean()) / (all_cur.std() + 1e-8)
-    elif norm == "none":
-        pass  # skip normalization
-    else:
-        raise ValueError(f"Unknown normalization mode: {norm}")
+    # Z-score normalization per modality
+    all_vib = (all_vib - all_vib.mean()) / (all_vib.std() + 1e-8)
+    all_cur = (all_cur - all_cur.mean()) / (all_cur.std() + 1e-8)
 
     np.save(os.path.join(output_dir, "vibration.npy"), all_vib)
     np.save(os.path.join(output_dir, "current.npy"), all_cur)
@@ -456,10 +443,6 @@ Expected raw data layout:
         help="Length of each signal window (default: 2048)",
     )
     parser.add_argument(
-        "--norm", type=str, default="global", choices=["global", "none"],
-        help="Normalization mode: 'global' (z-score, default) or 'none' (skip)",
-    )
-    parser.add_argument(
         "--inspect", action="store_true",
         help="Inspect raw file structure instead of preprocessing",
     )
@@ -511,11 +494,9 @@ Expected raw data layout:
     print()
 
     if args.dataset == "pu":
-        preprocess_pu(args.raw_dir, args.output_dir, args.signal_length,
-                      norm=args.norm)
+        preprocess_pu(args.raw_dir, args.output_dir, args.signal_length)
     else:
-        preprocess_pmsm(args.raw_dir, args.output_dir, args.signal_length,
-                        norm=args.norm)
+        preprocess_pmsm(args.raw_dir, args.output_dir, args.signal_length)
 
 
 if __name__ == "__main__":
