@@ -119,6 +119,8 @@ def run_experiment(args, seed, run_dir, label_names):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Data ---
+    # Use fixed seed for data split so all runs share the same train/val/test sets.
+    # Only model init and training randomness vary across runs.
     data_config = config.PU_CONFIG if args.dataset == "pu" else config.PMSM_CONFIG
     num_classes = data_config["num_classes"]
     train_loader, val_loader, test_loader = get_dataloaders(
@@ -126,7 +128,7 @@ def run_experiment(args, seed, run_dir, label_names):
         batch_size=args.batch_size,
         split_ratio=data_config["split_ratio"],
         num_workers=args.num_workers,
-        seed=seed,
+        seed=config.SEED,
     )
 
     # --- Model ---
@@ -259,7 +261,7 @@ def main():
     label_names = data_config["label_names"]
 
     all_results = {"current": [], "vibration": [], "both": []}
-    best_overall_acc = 0.0
+    best_overall_score = (-1.0, -1.0, -1.0)  # (both, current, vibration)
     best_run_model_path = None
 
     for run in range(1, args.repeats + 1):
@@ -274,8 +276,9 @@ def main():
         for mode in ["current", "vibration", "both"]:
             all_results[mode].append(results[mode])
 
-        if results["both"] > best_overall_acc:
-            best_overall_acc = results["both"]
+        run_score = (results["both"], results["current"], results["vibration"])
+        if run_score > best_overall_score:
+            best_overall_score = run_score
             best_run_model_path = os.path.join(run_dir, "model.pt")
 
     # --- Summary ---
@@ -330,7 +333,9 @@ def main():
     _, _, test_loader = get_dataloaders(
         data_dir=data_config["data_dir"],
         batch_size=args.batch_size,
+        split_ratio=data_config["split_ratio"],
         num_workers=args.num_workers,
+        seed=config.SEED,
     )
 
     dataset_dir = os.path.join(args.output_dir, args.dataset)

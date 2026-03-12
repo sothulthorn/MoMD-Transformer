@@ -364,7 +364,7 @@ class MoMDTransformer(nn.Module):
         vib_recon = self.msm_head(vib_features)  # (B, N, seg)
         cur_recon = self.msm_head(cur_features)
 
-        # MSE on masked patches only
+        # Eq. 19: MSE on masked patches (paper says "mean squared error")
         vib_loss = F.mse_loss(
             vib_recon[vib_mask], orig_vib[vib_mask], reduction="mean"
         )
@@ -381,6 +381,9 @@ class MoMDTransformer(nn.Module):
 
         L_gkt = (1/L) * sum_i ||z_V,i^0 - z_C,i^0||_2^2
 
+        Vibration features are detached (stop-gradient) so GKT only
+        updates the current pathway — vibration acts as the teacher.
+
         Args:
             block_cls_vib: list of L tensors, each (B, embed_dim)
             block_cls_cur: list of L tensors, each (B, embed_dim)
@@ -388,5 +391,5 @@ class MoMDTransformer(nn.Module):
         L = len(block_cls_vib)
         loss = 0.0
         for z_v, z_c in zip(block_cls_vib, block_cls_cur):
-            loss = loss + torch.mean(torch.sum((z_v - z_c) ** 2, dim=-1))
+            loss = loss + torch.mean(torch.sum((z_v.detach() - z_c) ** 2, dim=-1))
         return loss / L

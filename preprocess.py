@@ -170,22 +170,28 @@ def preprocess_pu(raw_dir, output_dir, signal_length=2048):
             print(f"    [WARN] No valid files for {bearing_code}")
             continue
 
-        # Concatenate all recordings for this bearing
-        vib_concat = np.concatenate(bearing_vib)
-        cur_concat = np.concatenate(bearing_cur)
+        # Segment each recording into fixed-length windows
+        windows_vib, windows_cur = [], []
+        for vib_rec, cur_rec in zip(bearing_vib, bearing_cur):
+            usable = min(len(vib_rec), len(cur_rec))
+            n_win = usable // signal_length
+            for i in range(n_win):
+                start = i * signal_length
+                windows_vib.append(vib_rec[start:start + signal_length])
+                windows_cur.append(cur_rec[start:start + signal_length])
 
-        # Segment into fixed-length windows
-        usable_len = min(len(vib_concat), len(cur_concat))
-        num_windows = usable_len // signal_length
-        num_windows = min(num_windows, PU_SAMPLES_PER_BEARING)
-
-        for i in range(num_windows):
-            start = i * signal_length
-            all_vib.append(vib_concat[start:start + signal_length])
-            all_cur.append(cur_concat[start:start + signal_length])
+        # Randomly sample PU_SAMPLES_PER_BEARING windows across all files
+        num_available = len(windows_vib)
+        num_windows = min(num_available, PU_SAMPLES_PER_BEARING)
+        rng = np.random.RandomState(42)
+        indices = rng.choice(num_available, num_windows, replace=False)
+        for idx in indices:
+            all_vib.append(windows_vib[idx])
+            all_cur.append(windows_cur[idx])
             all_labels.append(label)
 
-        print(f"    -> {num_windows} samples extracted")
+        print(f"    -> {num_windows} samples extracted "
+              f"(from {num_available} available across {len(bearing_vib)} files)")
 
     _save_dataset(all_vib, all_cur, all_labels, output_dir, "PU")
 

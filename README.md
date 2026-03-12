@@ -117,9 +117,6 @@ python preprocess.py --dataset pu --raw_dir ./data/pu_raw --inspect
 # Preprocess
 python preprocess.py --dataset pu   --raw_dir ./data/pu_raw   --output_dir ./data/pu
 python preprocess.py --dataset pmsm --raw_dir ./data/pmsm_raw --output_dir ./data/pmsm
-
-# Optional: skip normalization
-python preprocess.py --dataset pu --raw_dir ./data/pu_raw --output_dir ./data/pu_nonorm --norm none
 ```
 
 ## Usage

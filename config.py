@@ -11,7 +11,7 @@ Based on: "MoMD Transformer: adaptive multi-modal fault diagnosis via knowledge
 SIGNAL_LENGTH = 2048
 SEGMENT_LENGTH = 64
 EMBED_DIM = 128
-MLP_DIM = 419 # 512
+MLP_DIM = 512
 NUM_HEADS = 8
 BLOCK_DEPTH = 3
 DROPOUT = 0.2
