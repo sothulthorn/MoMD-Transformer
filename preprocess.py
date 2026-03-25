@@ -364,7 +364,7 @@ def preprocess_pmsm(raw_dir, output_dir, signal_length=2048):
 # ==============================================================================
 
 def _save_dataset(all_vib, all_cur, all_labels, output_dir, dataset_name):
-    """Z-score normalize, save arrays, and print summary."""
+    """Z-score normalize per modality, save arrays, and print summary."""
     if not all_labels:
         print(f"\n[ERROR] No data extracted for {dataset_name}. "
               "Check your raw_dir path and file structure.")
@@ -374,7 +374,7 @@ def _save_dataset(all_vib, all_cur, all_labels, output_dir, dataset_name):
     all_cur = np.array(all_cur, dtype=np.float32)
     all_labels = np.array(all_labels, dtype=np.int64)
 
-    # Z-score normalization per modality
+    # Z-score normalization per modality (global)
     all_vib = (all_vib - all_vib.mean()) / (all_vib.std() + 1e-8)
     all_cur = (all_cur - all_cur.mean()) / (all_cur.std() + 1e-8)
 

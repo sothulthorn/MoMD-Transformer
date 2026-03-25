@@ -164,7 +164,7 @@ def run_experiment(args, seed, run_dir, label_names):
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     # --- Training ---
-    best_val_acc = 0.0
+    best_val_score = 0.0
     best_model_state = None
     history = []
 
@@ -207,8 +207,11 @@ def run_experiment(args, seed, run_dir, label_names):
             both=f"{val_acc_both:.1f}%",
         )
 
-        if val_acc_both > best_val_acc:
-            best_val_acc = val_acc_both
+        # Save checkpoint based on average of all three modes,
+        # so improvements in current accuracy are also captured.
+        val_avg = (val_acc_cur + val_acc_vib + val_acc_both) / 3
+        if val_avg >= best_val_score:
+            best_val_score = val_avg
             best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
 
     # --- Load best model ---
